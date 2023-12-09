@@ -83,8 +83,6 @@ export default function Home() {
     }
   }, [isLoggedIn])
 
-  console.log('is', isLoggedIn && !isInvalid)
-
   if (isLoggedIn && !isInvalid) return <>
     <Gameplay plot={lok} />
   </>
@@ -99,7 +97,7 @@ export default function Home() {
       <div className='flex flex-1 justify-center items-center flex-col'>
         <h1 className='text-4xl font-bold text-center text-black leading-relaxed'>Unleash Your Imagination, Forge Your Storyline, Collect NFT Memories!</h1>
         <h2 className='text-xl text-black font-bold flex flex-row items-center justify-center mt-2'>
-          powered by GenAI & <span><img className="mb-2 mx-0" alt="NFT Image" height={50} width={150} src={'/logos/solana.png'} /></span>
+          powered by GenAI & <span><img className="mb-2 mx-0" alt="NFT Image" height={50} width={150} src={'/logos/mantle.png'} /></span>
         </h2>
       </div>
     </div>

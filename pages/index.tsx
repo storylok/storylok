@@ -13,6 +13,7 @@ import Image from 'next/image'
 import mixpanel from 'mixpanel-browser'
 import { useRouter } from 'next/router';
 import { useAccount } from '@particle-network/connect-react-ui';
+import { fetchLatestNftsF } from '@/rollup/firebase';
 
 // Make sure to bind modal to your appElement (https://reactcommunity.org/react-modal/accessibility/)
 Modal.setAppElement('#modal');
@@ -57,10 +58,10 @@ export default function Home() {
   useEffect(() => {
     // Fetch NFTs.
     const fetchNfts = async () => {
-      const nfts = await fetchLatestNfts()
+      const nfts = await fetchLatestNftsF()
       setNfts(nfts ?? [])
     }
-    fetchNfts()
+    setTimeout(() => fetchNfts(), 3000)
   }, [])
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export default function Home() {
 
     mixpanel.track('Start Game', {
       'isCustomGame': true,
-      'lok': title 
+      'lok': title
     })
     push(`/lok/${title}`)
   }
@@ -95,7 +96,7 @@ export default function Home() {
       <div className='flex flex-1 justify-center items-center flex-col px-2'>
         <h1 className='text-4xl font-bold text-center text-black leading-relaxed'>Unleash Your Imagination, Forge Your Storyline, Collect NFT Memories!</h1>
         <h2 className='text-xl text-black font-bold flex flex-row items-center justify-center mt-2'>
-          powered by GenAI & <span><img className="mb-2 mx-0" alt="NFT Image" height={50} width={150} src={'/logos/solana.png'} /></span>
+          powered by GenAI & <span><img className="mb-2 mx-0 ml-4" alt="NFT Image" height={30} width={120} src={'/logos/mantle.png'} /></span>
         </h2>
       </div>
     </div>
@@ -103,8 +104,9 @@ export default function Home() {
     {/* Carousel of NFTs */}
     <div className='flex flex-row place-content-evenly z-0'>
       <Marquee style={{ overflowY: 'hidden', position: 'relative', zIndex: 0 }} className='flex flex-2' pauseOnHover>
-        {nfts.map((item: any) => {
-          return <GameCard tokenId={item.id} title={item.name} nftImage={item.image} chain='optimism' address={item.ownerAddress} />
+        {nfts.map((i: any) => {
+          const item = i.data()
+          return <GameCard tokenId={item.timestamp} title={item.name} nftImage={item.image} chain='optimism' address={item.player} />
         })}
       </Marquee>
     </div>
