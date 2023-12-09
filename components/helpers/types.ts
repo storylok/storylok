@@ -24,6 +24,8 @@ export type Colors = {
   text: string;
 }
 
+export type AppStorage = { docId: string, app_id: string, app_inbox: string }
+
 export type StoryMint = {
   title: string;
   description: string; // summary.

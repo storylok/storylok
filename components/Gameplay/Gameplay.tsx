@@ -2,23 +2,24 @@
 
 import Head from "next/head";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { continueStory, createImage, createImagePrompt, generateSummary, getImageData, startNewStory, textToImage } from "../helpers/story";
-import { ChatMessage } from "../helpers/types";
+import { continueStory, createImagePrompt, generateSummary, getImageData, startNewStory, textToImage } from "../helpers/story";
+import { AppStorage, ChatMessage } from "../helpers/types";
 import Modal from 'react-modal';
-import { mintNftOnWallet, prepareNftMetadata } from "../helpers/contract";
+import { prepareNftMetadata } from "../helpers/contract";
 import { NFTStorage } from 'nft.storage'
 import { } from '@particle-network/connect-react-ui'
-import { Howl, Howler } from 'howler';
+import { Howl } from 'howler';
 import * as ed from '@noble/ed25519'
 import { sha512 } from "@noble/hashes/sha512";
 import axios from "axios";
 
 import { loks } from './loks.json'
 import { useRouter } from "next/router";
-import { useAccount, useNetwork, useConnectModal, useConnectKit, useParticleConnect, useParticleProvider } from "@particle-network/connect-react-ui";
+import { useAccount, useConnectKit, useParticleConnect } from "@particle-network/connect-react-ui";
 import bs58 from 'bs58';
 import { useMediaQuery } from "../helpers/hooks";
-import { PublicKey } from '@solana/web3.js'
+import { mintNftOnWalletF, saveNewGame } from "@/rollup/firebase";
+import { createStackrTx } from "@/rollup";
 
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -80,11 +81,14 @@ export default function Gameplay({ plot }: GameplayProp) {
   )
   const bottomEl = useRef(null);
 
+
+  const [appStorage, setStorageDocId] = useState<AppStorage>()
+
+
   const scrollToBottom = () => {
     // (bottomEl?.current as any).scrollIntoView({ behavior: 'smooth' });
     setTimeout(() => {
       const lastChildElement = (bottomEl.current as any).lastElementChild;
-      console.log(lastChildElement, bottomEl, bottomEl.current)
       lastChildElement?.scrollIntoView({ behavior: 'smooth' });
     }, 1000)
   };
@@ -205,46 +209,41 @@ export default function Gameplay({ plot }: GameplayProp) {
     } else {
       bgHow?.play();
     }
+
+    setIsBgMute(!isBgMute)
   }
 
   const mintNftOnChain = async () => {
-    if (!account || loading) return;
+    if (!account || loading || !appStorage?.docId) return;
     try {
       setLoading(true)
-      const phantomProvider = getProvider();
-
       // Request message signing from the user.
       // `account` will be null if the wallet isn't connected
       if (!account) throw new Error('Wallet not connected!');
 
-      const address = phantomProvider?.isPhantom ? phantomProvider.publicKey.toString() : await connectKit.particle.solana.getAddress();
-      const publicKey = new PublicKey(address);
-
       // Encode anything as bytes
-      const msg = 'You are authenticating to mint the Storylok NFT on your wallet.'
-      const message = new TextEncoder().encode(msg);
-      console.log('hereee')
       // Sign the bytes using the wallet
-      const signature = phantomProvider?.isPhantom ?
-        await phantomProvider.signMessage(message, 'utf8') :
-        await connectKit.particle.solana.signMessage(bs58.encode(message));
+      // const accounts = await (window as any).eth.getAccounts();
+      // const result = await (window as any).eth.personal.sign(bs58.encode(message), accounts[0], '');
 
-      // Verify that the bytes were signed using the private key that matches the known public key
-      if (!ed.verify(phantomProvider?.isPhantom ? signature.signature : signature, message, publicKey.toBytes())) throw new Error('Invalid signature!');
+      // // Verify that the bytes were signed using the private key that matches the known public key
+      // if (!ed.verify(result, message, publicKey.toBytes())) throw new Error('Invalid signature!');
 
       // Prepare NFT Metadata.
       const { hash, json } = await prepareNftMetadata(imageIpfs, baseline.title, baseline.summary, baseline.message, conversation)
 
-      const mint = await mintNftOnWallet(account.toString(), json.description, json.image, json.name, hash)
+      await mintNftOnWalletF(appStorage?.docId, json.description, json.image, json.name, hash)
 
-      if (!mint) {
-        setLoading(false)
-        alert('Error minting the NFT on Wallet!')
-        return;
-      }
+      // const mint = await mintNftOnWallet(account.toString(), json.description, json.image, json.name, hash)
 
-      console.log(mint)
-      setMint(mint)
+      // if (!mint) {
+      //   setLoading(false)
+      //   alert('Error minting the NFT on Wallet!')
+      //   return;
+      // }
+
+      // console.log(mint)
+      // setMint(mint)
 
       // Change the mode that NFT minted on Solana, share your story.
       setSuccessModel(true)
@@ -296,6 +295,25 @@ export default function Gameplay({ plot }: GameplayProp) {
       if (story && story.title) {
         setBaseline({ title: story.title, summary: '', message: story.message }) // TODO: add summary.
         setOptions(story.options) //TODO: add options.
+
+        if (!account) return;
+
+        // Call Stackr here instead of firebase.
+        const docId = await saveNewGame(account, 'app_id', 'app_inbox')
+        if (docId) {
+          setStorageDocId(docId)
+        }
+
+        const conv: ChatMessage[] = [
+          {
+            role: 'assistant',
+            content: story.message
+          }
+        ]
+        if (docId) {
+          await createStackrTx(docId, conv)
+        }
+
         convertTextToSpeech(story.message)
       }
     }
@@ -326,7 +344,6 @@ Response must be in the following JSON format:
         content: baseline.summary ?? '',
       }, ...messages, userRequest]
 
-      console.log(msgs)
       setLoading(true)
 
       if (how) {
@@ -336,12 +353,11 @@ Response must be in the following JSON format:
       const response = await continueStory(msgs)
 
       setUserCommand('')
-      console.log(response)
       setMessages([...msgs, userRequest, {
         role: 'assistant',
         content: JSON.stringify(response) ?? ''
       }])
-      setConversation([
+      const conv = [
         ...conversation,
         {
           role: 'user',
@@ -350,7 +366,12 @@ Response must be in the following JSON format:
         {
           role: 'assistant',
           content: response.message ?? ''
-        }])
+        }]
+      setConversation(conv)
+      // Calling Stackr.
+      if (appStorage)
+        await createStackrTx(appStorage, conv)
+
       setOptions(response.options)
       setLoading(false)
       convertTextToSpeech(response.message)
@@ -399,11 +420,8 @@ Response must be in the following JSON format:
         setBaseline({ ...baseline, summary: summary })
       }
 
-      console.log(response)
-
       if (response) {
         const data = await textToImage(response, selectedLok)
-        console.log('data', data)
 
         if (data) {
           // Convert base64 to binary
@@ -520,7 +538,7 @@ Response must be in the following JSON format:
                   </div> : 'Save Game NFT'
                 }
               </div>}
-              <span onClick={toggleBgMute} className="ml-2 hover:text-gray-600 cursor-pointer">{isMute ? 'bg 🔇' : 'bg 🔊'}</span>
+              <span onClick={toggleBgMute} className="ml-2 hover:text-gray-600 cursor-pointer">{isBgMute ? 'bg 🔇' : 'bg 🔊'}</span>
               <span onClick={toggleMute} className="ml-2 hover:text-gray-600 cursor-pointer">{isMute ? 'Unmute 🔇' : 'Mute 🔊'}</span>
             </div>
 
