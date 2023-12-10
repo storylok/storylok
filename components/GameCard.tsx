@@ -15,7 +15,7 @@ export default function GameCard(props: GameCardProps) {
   return <a href={`/story/${tokenId}`} target="_blank">
     <div className="box box1 mx-4 z-0">
       <div className="oddboxinner flex flex-col">
-        <img className="boxNoColor box1 mb-2 mx-0" alt="NFT Image" height={300} width={260} src={nftImage} />
+        <Image className="boxNoColor box1 mb-2 mx-0" alt="NFT Image" height={300} width={260} src={nftImage} />
         <h1 className="font-bold w-[260px]">{title}</h1>
         <div className="flex flex-row flex-1 items-center">
           <h2 className="ml-2 mt-1 text-xs">{address.slice(0, 3)}...{address.slice(address.length - 4, address.length - 1)}</h2>

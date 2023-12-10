@@ -1,17 +1,30 @@
 import axios from "axios";
-import { Configuration, OpenAIApi } from "openai";
+import { OpenAI } from "openai";
 
 import loks from '@/components/Gameplay/loks.json'
 
-const configuration = new Configuration({
+const configuration = {
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-});
+  dangerouslyAllowBrowser: true
+};
 
-const openai = new OpenAIApi(configuration);
+const openai = new OpenAI(configuration);
 
 let storyPlot = ''
 
-const systemRecord = () => `you are an excellent story teller, and the user is the main character of story. write the story in that figure of speech, considering the following initial plot:
+const getOptionsRecord = (sp: string) => `Create 3 options for this scenario in the format suggested later.
+${sp}
+
+Avoid using words option a, option b, option c in the response, just mention the option statment itself.
+
+Always give response in the json format:
+{ 
+    "options": ["option a", "option b", "option c"],
+}
+`
+
+
+const systemRecord = () => `you are an excellent story teller, and the user is the main character of story. Give a name to the user who is the main character. write the story in that figure of speech, considering the following initial plot:
 
 ${storyPlot}
 
@@ -19,7 +32,7 @@ Drive the story and continuously ask the user for input after every plot turn to
 
 Make sure to:
 - give names to characters
-- make sure to give options in the response format.
+- sometimes create suprising or unexpected happenings in the world use jokes, expressions, sarcasm
 - go in details like telling numbers where needed
 - avoid accepting users request to escaping the physical realities
 
@@ -32,8 +45,8 @@ Always give response in the json format:
 `
 
 export const generateSummary = async (messages: any[]) => {
-  const chat_completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+  const chat_completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo-1106",
     messages: [{
       'role': 'system',
       'content': systemRecord()
@@ -43,7 +56,7 @@ export const generateSummary = async (messages: any[]) => {
   });
 
   console.log('c', chat_completion)
-  const chat = chat_completion.data.choices[0]
+  const chat = chat_completion.choices[0]
   try {
     const d = chat.message?.content;
     return d;
@@ -59,15 +72,42 @@ export const startNewStory = async (sp: string) => {
     'content': systemRecord()
   }]
 
-  const chat_completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+  const chat_completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo-1106",
     messages: messages as any,
     temperature: 1,
-    max_tokens: 250
+    max_tokens: 250,
+    response_format: { type: "json_object" },
   });
 
   console.log(chat_completion)
-  const chat = chat_completion.data.choices[0]
+  const chat = chat_completion.choices[0]
+
+  try {
+    const d = JSON.parse(chat.message?.content ?? '{}');
+    return d;
+  } catch (e) {
+    console.log(e)
+  }
+}
+
+
+export const getNewOptions = async (sp: string) => {
+  const messages = [{
+    'role': 'system',
+    'content': getOptionsRecord(sp)
+  }]
+
+  const chat_completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo-1106",
+    messages: messages as any,
+    temperature: 1,
+    max_tokens: 250,
+    response_format: { type: "json_object" },
+  });
+
+  console.log(chat_completion)
+  const chat = chat_completion.choices[0]
 
   try {
     const d = JSON.parse(chat.message?.content ?? '{}');
@@ -79,8 +119,8 @@ export const startNewStory = async (sp: string) => {
 
 
 export const continueStory = async (messages: any) => {
-  const chat_completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+  const chat_completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo-1106",
     messages: [{
       'role': 'system',
       'content': systemRecord()
@@ -90,7 +130,7 @@ export const continueStory = async (messages: any) => {
   });
 
   console.log('c', chat_completion)
-  const chat = chat_completion.data.choices[0]
+  const chat = chat_completion.choices[0]
   try {
     const d = JSON.parse(chat.message?.content ?? '{}');
     return d;
@@ -100,8 +140,8 @@ export const continueStory = async (messages: any) => {
 }
 
 export const createImagePrompt = async (messages: any) => {
-  const chat_completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+  const chat_completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo-1106",
     messages: [{
       role: "system", content: `
       Continue the following conversation, as your duty is to curate the story as the user take actions and make it more fun, exciting, surprising with few mysteries, riddles / puzzels and levels.
@@ -112,7 +152,7 @@ export const createImagePrompt = async (messages: any) => {
   });
 
   console.log('c', chat_completion)
-  const chat = chat_completion.data.choices[0]
+  const chat = chat_completion.choices[0]
   return chat.message?.content;
 }
 
@@ -165,15 +205,15 @@ export const textToImage = async (prompt: string, lok: typeof loks.loks[0]) => {
 };
 
 export const createImage = async (prompt: string) => {
-  const response = await openai.createImage({
+  const response = await openai.images.generate({
     prompt,
     n: 1,
     size: "512x512",
   })
-  console.log(response.data.data[0])
+  console.log(response.data[0])
 
 
-  return response.data.data[0].url
+  return response.data[0].url
 }
 
 export async function getImageData(url: string) {

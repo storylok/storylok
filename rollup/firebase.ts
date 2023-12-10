@@ -5,6 +5,7 @@ import { getAnalytics } from "firebase/analytics";
 import { Firestore, addDoc, arrayUnion, collection, doc, getDoc, getDocs, getFirestore, limit, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import { ChatMessage } from "@/components/helpers/types";
 import dotenv from 'dotenv'
+import { String } from "aws-sdk/clients/acm";
 
 dotenv.config()
 
@@ -57,7 +58,7 @@ export const updateGameState = async (docId: string, conv: ChatMessage[]) => {
 
 export const mintNftOnWalletF = async (docId: string, description: string, image: string, name: string, hash: string) => {
   try {
-    if(!db) setup()
+    if (!db) setup()
     const cf = collection(db, "games")
 
     // Document doesn't exist, create a new one

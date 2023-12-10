@@ -2,7 +2,7 @@
 
 import Head from "next/head";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { continueStory, createImagePrompt, generateSummary, getImageData, startNewStory, textToImage } from "../helpers/story";
+import { continueStory, createImagePrompt, generateSummary, getImageData, getNewOptions, startNewStory, textToImage } from "../helpers/story";
 import { AppStorage, ChatMessage } from "../helpers/types";
 import Modal from 'react-modal';
 import { prepareNftMetadata } from "../helpers/contract";
@@ -26,6 +26,7 @@ ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type GameplayProp = {
   plot?: string
+  nft?: any
 }
 
 const NFT_THRESHOLD = 25
@@ -45,7 +46,7 @@ const customStyles = {
 // Make sure to bind modal to your appElement (https://reactcommunity.org/react-modal/accessibility/)
 Modal.setAppElement('#modal');
 
-export default function Gameplay({ plot }: GameplayProp) {
+export default function Gameplay({ plot, nft }: GameplayProp) {
 
   const { push } = useRouter()
 
@@ -65,6 +66,8 @@ export default function Gameplay({ plot }: GameplayProp) {
   const [imageIpfs, setImageIpfs] = useState('')
   const [conversation, setConversation] = useState<ChatMessage[]>([])
   const [modalIsOpen, setIsOpen] = useState(false);
+
+  // const [isBlur, setIsBlur] = useState(false);
 
   const [how, setHowl] = useState<Howl>()
 
@@ -94,17 +97,21 @@ export default function Gameplay({ plot }: GameplayProp) {
   };
 
   const commandInputRef = useRef<HTMLInputElement>(null);
-  const connectKit = useConnectKit();
-  const isParticleActive = connectKit.particle.auth.isLogin();
 
+  useEffect(() => {
+    if (nft && nft?.name && nft?.conversation) {
+      if(!account) {
 
-  const getProvider = () => {
-    if (!isParticleActive) {
-      return (window as any).phantom?.solana;
+      }
+
+      setBaseline({
+        title: nft.name,
+        message: nft.description,
+        summary: ''
+      })
+      setConversation(nft.conversation)
     }
-    return null;
-  };
-
+  }, [])
 
   async function convertTextToSpeech(text: string) {
     if (isMute) return;
@@ -281,41 +288,53 @@ export default function Gameplay({ plot }: GameplayProp) {
       sound.play();
       setBgHow(sound)
 
-      // Randomly pick a lok aka storyplot.
-      const lk = getRandomInt(loks.length)
-      const lok = plot ?? loks[lk].plot
-      setLok(loks[lk])
+      if (nft) {
+        let options = await getNewOptions(nft.conversation[nft.conversation.length - 1].content)
+        setOptions(options.options) //TODO: add options.
+        scrollToBottom()
 
-      let story = await startNewStory(lok)
-      if (!story) {
-        story = await startNewStory(lok)
-      }
-      setLoading(false)
-      setFirstLoading(false)
-      if (story && story.title) {
-        setBaseline({ title: story.title, summary: '', message: story.message }) // TODO: add summary.
-        setOptions(story.options) //TODO: add options.
+        setLoading(false)
+        setFirstLoading(false)
+      } else {
+        // Randomly pick a lok aka storyplot.
+        const lk = getRandomInt(loks.length)
+        const lok = plot ?? loks[lk].plot
+        setLok(loks[lk])
 
-        if (!account) return;
-
-        // Call Stackr here instead of firebase.
-        const docId = await saveNewGame(account, 'app_id', 'app_inbox')
-        if (docId) {
-          setStorageDocId(docId)
+        let story = await startNewStory(lok)
+        if (!story) {
+          story = await startNewStory(lok)
         }
 
-        const conv: ChatMessage[] = [
-          {
-            role: 'assistant',
-            content: story.message
+        setLoading(false)
+        setFirstLoading(false)
+
+        if (story && story.title) {
+          setBaseline({ title: story.title, summary: '', message: story.message }) // TODO: add summary.
+          setOptions(story.options) //TODO: add options.
+
+          if (!account) return;
+
+          // Call Stackr here instead of firebase.
+          const docId = await saveNewGame(account, 'app_id', 'app_inbox')
+          if (docId) {
+            setStorageDocId(docId)
           }
-        ]
-        if (docId) {
-          await createStackrTx(docId, conv)
-        }
 
-        convertTextToSpeech(story.message)
+          const conv: ChatMessage[] = [
+            {
+              role: 'assistant',
+              content: story.message
+            }
+          ]
+          if (docId) {
+            await createStackrTx(docId, conv)
+          }
+
+          convertTextToSpeech(story.message)
+        }
       }
+
     }
 
     if (baseline.title == '' && baseline.message == '' && !loading)

@@ -4,6 +4,10 @@ import { NextSeo } from "next-seo"
 import axios from "axios"
 import { ChatMessage } from "@/components/helpers/types"
 import { useMediaQuery } from "@/components/helpers/hooks"
+import { collection, getDocs, getFirestore, query, where } from "firebase/firestore"
+import { fetchNft } from "@/components/helpers/contract"
+import { initializeApp } from "firebase/app"
+import { useRouter } from "next/router"
 
 type StoryPageProps = {
   nftExists: boolean
@@ -12,6 +16,9 @@ type StoryPageProps = {
 
 export default function StoryPage(props: StoryPageProps) {
   const { nftExists, nft } = props
+
+  const r = useRouter()
+
   const [loadingContent, setLoadingContent] = useState(true)
 
   const isMobile = useMediaQuery(468)
@@ -19,18 +26,36 @@ export default function StoryPage(props: StoryPageProps) {
   const [message, setMessage] = useState<string>('')
   const [copyBtText, setCopyBtnText] = useState('Copy Link')
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(`https://storylok.xyz/story/${nft.id}`);
-    setCopyBtnText('Copied!')
+  const [forkEnabled, setForkEnabled] = useState(false)
 
-    setTimeout(() => {
-      setCopyBtnText('Copy Link')
-    }, 2000)
+  const [selected, setSelected] = useState<number>()
+
+  // const copyToClipboard = () => {
+  //   navigator.clipboard.writeText(`https://storylok.xyz/story/${nft.timestamp}`);
+  //   setCopyBtnText('Copied!')
+
+  //   setTimeout(() => {
+  //     setCopyBtnText('Copy Link')
+  //   }, 2000)
+  // }
+
+  const forkStoryline = () => {
+    if (!forkEnabled) {
+      setForkEnabled(true)
+      return;
+    }
+
+    if (!selected) {
+      return;
+    }
+
+    setForkEnabled(false)
+    // do the fork.
   }
 
   const shareOnW = () => {
     // Define the tweet text and image URL
-    const tweetText = `Hey, I just played ${nft.name} on Storylok, a story based NFT game on Solana that lets you explore AI-crafted realms.\n\nCheckout my story: https://storylok.xyz/story/${nft.id}`;
+    const tweetText = `Hey, I just played ${nft.name} on Storylok, a story based NFT game on Solana that lets you explore AI-crafted realms.\n\nCheckout my story: https://storylok.xyz/story/${nft.timestamp}`;
 
     // Encode the tweet text and image URL for the Twitter share URL
     const encodedTweetText = encodeURIComponent(tweetText);
@@ -44,7 +69,7 @@ export default function StoryPage(props: StoryPageProps) {
 
   const shareOnX = () => {
     // Define the tweet text and image URL
-    const tweetText = `Just played ${nft.name} on @Storylok_xyz, a story based NFT game on @Solana that lets you explore AI-crafted realms.\n\nCheckout my story: https://storylok.xyz/story/${nft.id}`;
+    const tweetText = `Just played ${nft.name} on @Storylok_xyz, a story based NFT game on @Solana that lets you explore AI-crafted realms.\n\nCheckout my story: https://storylok.xyz/story/${nft.timestamp}`;
 
     // Encode the tweet text and image URL for the Twitter share URL
     const encodedTweetText = encodeURIComponent(tweetText);
@@ -56,16 +81,22 @@ export default function StoryPage(props: StoryPageProps) {
     window.open(twitterShareUrl, '_blank');
   }
 
-  const openWalletOnSolscan = () => {
-    const url = `https://solscan.io/account/${nft.ownerAddress}`
+  const openWallet = () => {
+    const url = `https://etherscan.io/${nft.player}`
     // Open Twitter in a new window or tab
     window.open(url, '_blank');
   }
 
-  const fetchIpfsData = async () => {
-    if (nft.attributes && nft.attributes.conversation) {
+  const selectFork = async (index: number) => {
+    if (!forkEnabled) return;
 
-      const conversation = nft.attributes.conversation
+    r.push(`${r.asPath}/${index}`)
+  }
+
+  const fetchIpfsData = async () => {
+    if (nft && nft.hash) {
+
+      const conversation = nft.hash
       const options = {
         method: 'GET',
         url: `https://gateway.lighthouse.storage/ipfs/${conversation}`,
@@ -76,7 +107,6 @@ export default function StoryPage(props: StoryPageProps) {
 
       const response = await axios(options)
 
-      console.log(response.data, typeof response.data)
       if (response.data) {
         setMessage(response.data.message)
         setConversation(response.data.conversation)
@@ -148,7 +178,7 @@ export default function StoryPage(props: StoryPageProps) {
           {conversation.map((i, index) => {
             if (i.role == 'user') return;
             return (
-              <div className={`flex flex-1 justify-items-end items-end`}>
+              <div onClick={() => index > 1 && selectFork(index)} className={`flex flex-1 justify-items-end items-end ${forkEnabled && (index > 1) ? 'hover:opacity-40 cursor-pointer' : ''}`}>
                 <div key={i.content.slice(0, 10)} className="box box1 max-h-fit md:mr-4 mr-0 my-4 pb-4">
                   <div className="oddboxinner">
                     <div className="flex flex-1 mx-4 my-4 mt-6 text-lg rounded-lg p-4 justify-end text-[#25b09b]"><>{conversation[index - 1].content}</></div>
@@ -173,7 +203,7 @@ export default function StoryPage(props: StoryPageProps) {
           <div className="oddboxinner px-2 flex flex-col">
 
             <Image className="boxNoColor box1 mb-2 mx-0 w-full" alt="NFT Image" height={300} width={260} src={nft.image} />
-            <p onClick={openWalletOnSolscan} className="text-md text-[#25b09b] hover:text-[#1f9181] cursor-pointer">{`Owner: ${nft.ownerAddress.slice(0, 4)}...${nft.ownerAddress.slice(nft.ownerAddress.length - 4, nft.ownerAddress.length)}`}</p>
+            <p onClick={openWallet} className="text-md text-[#25b09b] hover:text-[#1f9181] cursor-pointer">{`Owner: ${nft.player.slice(0, 4)}...${nft.player.slice(nft.player.length - 4, nft.player.length)}`}</p>
             <h1 className="text-2xl font-bold">{nft.name}</h1>
             <p className="textClamp">{nft.description}</p>
             <div className="flex md:flex-row flex-col">
@@ -183,8 +213,8 @@ export default function StoryPage(props: StoryPageProps) {
               {isMobile && <div onClick={shareOnW} className={"my-2 hover:bg-gray-100 md:ml-2 font-bold text-lg rounded-xl p-2 border-2 cursor-pointer flex flex-row items-center"}>
                 Share on <img src="/logos/whatsapp.png" className="ml-2 h-6 w-6" />
               </div>}
-              <div onClick={copyToClipboard} className={"my-2 md:ml-2 hover:bg-gray-100 font-bold text-lg rounded-xl p-2 border-2 cursor-pointer"}>
-                {copyBtText}
+              <div onClick={forkStoryline} className={`my-2 md:ml-2 hover:bg-gray-100 font-bold text-lg rounded-xl p-2 border-2 cursor-pointer ${forkEnabled ? 'text-white font-regular bg-accent hover:bg-teal-800' : ''}`}>
+                {!forkEnabled ? '⑂ Fork' : selected ? 'Start Forked ▶️' : 'Choose a Fork'}
               </div>
             </div>
           </div>
@@ -199,23 +229,23 @@ export async function getServerSideProps(context: any) {
   console.log('id', context.query, id)
 
 
-  const fetchNft = async (id: string) => {
-
-    const options = {
-      method: 'GET',
-      url: `https://mainnet.underdogprotocol.com/v2/projects/1/nfts/${id}`,
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${process.env.NEXT_PUBLIC_UNDERDOG_NFT}`
-      }
-    };
-
+  const fetchProjectByTimestamp = async (timestamp: number) => {
     try {
-      const res = await axios(options)
-      console.log(res)
 
-      if (res.status === 200) {
-        return res.data;
+      const firebaseConfig = JSON.parse((process.env.NEXT_PUBLIC_FIREBASE_CONFIG ?? ''));
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const cf = collection(db, "games")
+
+      const q = query(cf, where("timestamp", "==", timestamp))
+
+      const response = await getDocs(q)
+
+      const docs = response.docs
+
+      if (docs.length == 1) {
+        return docs[0].data();
       }
       return null;
     } catch (e) {
@@ -224,13 +254,11 @@ export async function getServerSideProps(context: any) {
     }
   }
 
-
   if (!id) {
     return { props: { nftExists: false } }
   }
 
-  const nft = await fetchNft(id.toString())
-  console.log('nft', nft)
+  const nft = await fetchProjectByTimestamp(parseInt(id.toString()))
   if (!nft) {
     return { props: { nftExists: false } }
   }
