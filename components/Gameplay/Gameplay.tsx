@@ -205,6 +205,8 @@ export default function Gameplay({ plot }: GameplayProp) {
     } else {
       bgHow?.play();
     }
+
+    setIsBgMute(!isBgMute)
   }
 
   const mintNftOnChain = async () => {
@@ -520,7 +522,7 @@ Response must be in the following JSON format:
                   </div> : 'Save Game NFT'
                 }
               </div>}
-              <span onClick={toggleBgMute} className="ml-2 hover:text-gray-600 cursor-pointer">{isMute ? 'bg 🔇' : 'bg 🔊'}</span>
+              <span onClick={toggleBgMute} className="ml-2 hover:text-gray-600 cursor-pointer">{isBgMute ? 'bg 🔇' : 'bg 🔊'}</span>
               <span onClick={toggleMute} className="ml-2 hover:text-gray-600 cursor-pointer">{isMute ? 'Unmute 🔇' : 'Mute 🔊'}</span>
             </div>
 
